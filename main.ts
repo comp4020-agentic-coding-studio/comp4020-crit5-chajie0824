@@ -46,6 +46,7 @@ let status: Status = "playing";
 let flashUntil = 0;
 let shakeUntil = 0;
 let sparks: Spark[] = [];
+let failedAngle: number | null = null;
 
 function resize() {
   const rect = canvas.getBoundingClientRect();
@@ -76,6 +77,7 @@ function reset() {
   satellites = [];
   score = 0;
   sparks = [];
+  failedAngle = null;
   status = "playing";
 }
 
@@ -89,6 +91,7 @@ function fire() {
 
   if (collides(satellites, ringAngle, minSeparation)) {
     status = "gameover";
+    failedAngle = ringAngle;
     const now = performance.now();
     shakeUntil = now + SHAKE_MS;
     sparks = Array.from({ length: 18 }, () => ({
@@ -106,6 +109,33 @@ function fire() {
     minSeparation = Math.max(MIN_SEPARATION_FLOOR, minSeparation * SEPARATION_DECAY);
     rotationSpeed *= ROTATION_SPEED_GROWTH;
     flashUntil = performance.now() + FLASH_MS;
+  }
+}
+
+// Draws the actual hit zone, not a stand-in dot: this wedge's angular width
+// is minSeparation, so two wedges edge-to-edge on screen means exactly the
+// legal, tightest-possible fit --- what you see is what fire() checks.
+function drawWedge(
+  ringAngleLocal: number,
+  halfWidth: number,
+  fillStyle: string,
+  strokeStyle: string | null,
+) {
+  const screenAngle = ringAngleLocal + rotationOffset;
+  const start = screenAngle - halfWidth;
+  const end = screenAngle + halfWidth;
+  const inner = ringRadius - 12;
+  const outer = ringRadius + 12;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, outer, start, end);
+  ctx.arc(center.x, center.y, inner, end, start, true);
+  ctx.closePath();
+  ctx.fillStyle = fillStyle;
+  ctx.fill();
+  if (strokeStyle) {
+    ctx.strokeStyle = strokeStyle;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
 }
 
@@ -176,14 +206,19 @@ function draw(now: number) {
     ctx.stroke();
   }
 
+  const halfWidth = minSeparation / 2;
   for (const ringAngle of satellites) {
-    const screenAngle = ringAngle + rotationOffset;
-    const x = center.x + Math.cos(screenAngle) * ringRadius;
-    const y = center.y + Math.sin(screenAngle) * ringRadius;
-    ctx.fillStyle = "#8fe3c7";
-    ctx.beginPath();
-    ctx.arc(x, y, 6, 0, TAU);
-    ctx.fill();
+    drawWedge(ringAngle, halfWidth, "rgba(143, 227, 199, 0.85)", "rgba(200, 255, 235, 0.9)");
+  }
+
+  if (status === "playing") {
+    const previewAngle = normalizeAngle(LAUNCH_ANGLE - rotationOffset);
+    drawWedge(previewAngle, halfWidth, "rgba(255, 214, 120, 0.22)", "rgba(255, 214, 120, 0.8)");
+  } else if (status === "gameover" && failedAngle !== null) {
+    // The shot that lost the round, left on screen overlapping the wedge it
+    // clipped --- so the overlap that caused the loss is visible, not just
+    // asserted by the shake and sparks.
+    drawWedge(failedAngle, halfWidth, "rgba(255, 122, 92, 0.55)", "rgba(255, 170, 140, 0.9)");
   }
 
   sparks = sparks.filter((spark) => spark.life > 0);
