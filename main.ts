@@ -48,7 +48,33 @@ let center = { x: 0, y: 0 };
 let ringRadius = 0;
 let stars: Star[] = [];
 
+// Cartesian offsets (fraction of planetRadius) rather than polar ones, and a
+// tilt that's independent of position --- ellipses whose long axis points
+// straight at the centre read as flower petals once there are more than two
+// of them, so the tilt deliberately doesn't track the placement angle.
+const CONTINENTS = [
+  // One big landmass cluster in one hemisphere (overlapping blobs of the
+  // same shade read as a single irregular continent, not separate petals).
+  { dx: 0.06, dy: -0.38, size: 0.3, tilt: 0.3, shade: 0 },
+  { dx: 0.34, dy: -0.18, size: 0.25, tilt: -0.2, shade: 0 },
+  { dx: 0.2, dy: 0.05, size: 0.21, tilt: 0.6, shade: 0 },
+  { dx: 0.3, dy: -0.3, size: 0.1, tilt: 0.1, shade: 1 },
+  // A smaller, separate landmass on the opposite side, leaving most of that
+  // hemisphere open ocean.
+  { dx: -0.52, dy: 0.16, size: 0.17, tilt: -0.4, shade: 0 },
+  { dx: -0.43, dy: 0.4, size: 0.13, tilt: 0.2, shade: 0 },
+  { dx: -0.02, dy: 0.5, size: 0.08, tilt: 0, shade: 1 },
+];
+const LAND_SHADES = ["rgba(68, 148, 94, 0.92)", "rgba(150, 138, 78, 0.85)"];
+const CLOUDS = [
+  { angle: 1.1, offset: 0.6, size: 0.5 },
+  { angle: 4.3, offset: 0.45, size: 0.38 },
+  { angle: 5.8, offset: 0.7, size: 0.3 },
+];
+const PLANET_ROTATION_SPEED = 0.12; // rad/sec, independent of the ring
+
 let rotationOffset = 0;
+let planetRotation = 0;
 let rotationSpeed = START_ROTATION_SPEED;
 let minSeparation = START_MIN_SEPARATION;
 let satellites: number[] = [];
@@ -148,7 +174,10 @@ function fire() {
 
 // Draws the actual hit zone, not a stand-in dot: this wedge's angular width
 // is minSeparation, so two wedges edge-to-edge on screen means exactly the
-// legal, tightest-possible fit --- what you see is what fire() checks.
+// legal, tightest-possible fit --- what you see is what fire() checks. Kept
+// deliberately faint now that a satellite icon (drawSatelliteIcon) sits on
+// top of it as the readable shape; the wedge is the honest hit zone
+// underneath, not the thing a player is meant to read as "a satellite".
 function drawWedge(
   ringAngleLocal: number,
   halfWidth: number,
@@ -171,6 +200,134 @@ function drawWedge(
     ctx.lineWidth = 1.5;
     ctx.stroke();
   }
+}
+
+// A small satellite silhouette --- body plus two solar panels, rotated so
+// the panels run tangential to the orbit --- drawn on top of a wedge so the
+// ring reads as "satellites in orbit" rather than abstract colour blocks.
+function drawSatelliteIcon(
+  ringAngleLocal: number,
+  bodyStyle: string,
+  panelStyle: string,
+  outlineStyle = "rgba(4, 8, 22, 0.75)",
+) {
+  const screenAngle = ringAngleLocal + rotationOffset;
+  const x = center.x + Math.cos(screenAngle) * ringRadius;
+  const y = center.y + Math.sin(screenAngle) * ringRadius;
+  const scale = Math.max(1, ringRadius / 165);
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(screenAngle + Math.PI / 2);
+
+  ctx.lineJoin = "round";
+  ctx.fillStyle = panelStyle;
+  ctx.strokeStyle = outlineStyle;
+  ctx.lineWidth = 1 * scale;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.rect(side > 0 ? 4 * scale : -11 * scale, -1.6 * scale, 7 * scale, 3.2 * scale);
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(-11 * scale, 0);
+  ctx.lineTo(-3.6 * scale, 0);
+  ctx.moveTo(3.6 * scale, 0);
+  ctx.lineTo(11 * scale, 0);
+  ctx.lineWidth = 0.8 * scale;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.rect(-3.6 * scale, -3.2 * scale, 7.2 * scale, 6.4 * scale);
+  ctx.fillStyle = bodyStyle;
+  ctx.fill();
+  ctx.lineWidth = 1 * scale;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(0, -3.2 * scale);
+  ctx.lineTo(0, -7 * scale);
+  ctx.strokeStyle = outlineStyle;
+  ctx.lineWidth = 0.9 * scale;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, -7 * scale, 0.9 * scale, 0, TAU);
+  ctx.fillStyle = outlineStyle;
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// A textured little Earth: ocean base, a few procedural landmasses and
+// cloud wisps clipped to the disc, slowly spinning on its own axis
+// (independent of the ring) so it reads as a planet rather than a marble.
+function drawEarth(planetRadius: number) {
+  const oceanGradient = ctx.createRadialGradient(
+    center.x - planetRadius * 0.3,
+    center.y - planetRadius * 0.3,
+    planetRadius * 0.1,
+    center.x,
+    center.y,
+    planetRadius,
+  );
+  oceanGradient.addColorStop(0, "#6fb8e8");
+  oceanGradient.addColorStop(1, "#1c4d8a");
+  ctx.fillStyle = oceanGradient;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, planetRadius, 0, TAU);
+  ctx.fill();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, planetRadius, 0, TAU);
+  ctx.clip();
+
+  const cosR = Math.cos(planetRotation);
+  const sinR = Math.sin(planetRotation);
+  for (const land of CONTINENTS) {
+    const rx = land.dx * cosR - land.dy * sinR;
+    const ry = land.dx * sinR + land.dy * cosR;
+    const bx = center.x + rx * planetRadius;
+    const by = center.y + ry * planetRadius;
+    ctx.fillStyle = LAND_SHADES[land.shade];
+    ctx.beginPath();
+    ctx.ellipse(
+      bx,
+      by,
+      planetRadius * land.size,
+      planetRadius * land.size * 0.72,
+      land.tilt + planetRotation,
+      0,
+      TAU,
+    );
+    ctx.fill();
+  }
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+  for (const cloud of CLOUDS) {
+    const a = cloud.angle + planetRotation * 1.6;
+    const cx = center.x + Math.cos(a) * planetRadius * cloud.offset;
+    const cy = center.y + Math.sin(a) * planetRadius * cloud.offset;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, planetRadius * cloud.size, planetRadius * cloud.size * 0.45, a, 0, TAU);
+    ctx.fill();
+  }
+
+  if (status !== "playing") {
+    ctx.fillStyle =
+      status === "gameover" ? "rgba(190, 50, 70, 0.38)" : "rgba(255, 205, 90, 0.32)";
+    ctx.fillRect(center.x - planetRadius, center.y - planetRadius, planetRadius * 2, planetRadius * 2);
+  }
+
+  ctx.restore();
+
+  ctx.strokeStyle = "rgba(180, 220, 255, 0.4)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(center.x, center.y, planetRadius, 0, TAU);
+  ctx.stroke();
 }
 
 function draw(now: number) {
@@ -211,29 +368,15 @@ function draw(now: number) {
   ctx.translate(shakeX, shakeY);
 
   const planetRadius = ringRadius * 0.34;
-  const planetGradient = ctx.createRadialGradient(
-    center.x - planetRadius * 0.3,
-    center.y - planetRadius * 0.3,
-    planetRadius * 0.1,
-    center.x,
-    center.y,
-    planetRadius,
-  );
-  planetGradient.addColorStop(0, "#9db9ff");
-  planetGradient.addColorStop(
-    1,
-    status === "gameover" ? "#5a2036" : status === "win" ? "#8a6a1a" : "#274a7a",
-  );
-  ctx.fillStyle = planetGradient;
-  ctx.beginPath();
-  ctx.arc(center.x, center.y, planetRadius, 0, TAU);
-  ctx.fill();
+  drawEarth(planetRadius);
 
   ctx.strokeStyle = "rgba(140, 170, 255, 0.35)";
   ctx.lineWidth = 2;
+  ctx.setLineDash([6, 7]);
   ctx.beginPath();
   ctx.arc(center.x, center.y, ringRadius, 0, TAU);
   ctx.stroke();
+  ctx.setLineDash([]);
 
   if (now < flashUntil) {
     ctx.strokeStyle = `rgba(150, 255, 210, ${(flashUntil - now) / FLASH_MS})`;
@@ -245,17 +388,22 @@ function draw(now: number) {
 
   const halfWidth = minSeparation / 2;
   for (const ringAngle of satellites) {
-    drawWedge(ringAngle, halfWidth, "rgba(143, 227, 199, 0.85)", "rgba(200, 255, 235, 0.9)");
+    drawWedge(ringAngle, halfWidth, "rgba(143, 227, 199, 0.22)", null);
+    drawSatelliteIcon(ringAngle, "#e7f3ff", "#8fe3c7");
   }
 
   if (status === "playing") {
     const previewAngle = normalizeAngle(LAUNCH_ANGLE - rotationOffset);
-    drawWedge(previewAngle, halfWidth, "rgba(255, 214, 120, 0.22)", "rgba(255, 214, 120, 0.8)");
+    drawWedge(previewAngle, halfWidth, "rgba(255, 214, 120, 0.12)", "rgba(255, 214, 120, 0.55)");
+    ctx.globalAlpha = 0.8;
+    drawSatelliteIcon(previewAngle, "#fff3d6", "#ffb347", "rgba(120, 70, 10, 0.8)");
+    ctx.globalAlpha = 1;
   } else if (status === "gameover" && failedAngle !== null) {
     // The shot that lost the round, left on screen overlapping the wedge it
     // clipped --- so the overlap that caused the loss is visible, not just
     // asserted by the shake and sparks.
-    drawWedge(failedAngle, halfWidth, "rgba(255, 122, 92, 0.55)", "rgba(255, 170, 140, 0.9)");
+    drawWedge(failedAngle, halfWidth, "rgba(255, 122, 92, 0.4)", "rgba(255, 170, 140, 0.9)");
+    drawSatelliteIcon(failedAngle, "#ffcbb8", "#ff7a5c");
   }
 
   sparks = sparks.filter((spark) => spark.life > 0);
@@ -305,6 +453,7 @@ function frame(now: number) {
   if (status === "playing") {
     rotationOffset = normalizeAngle(rotationOffset + rotationSpeed * dt);
   }
+  planetRotation = normalizeAngle(planetRotation + PLANET_ROTATION_SPEED * dt);
   draw(now);
   scoreEl.textContent = String(score);
   roundEl.textContent = `Round ${round} · ${placedThisRound}/${roundTarget}`;
