@@ -53,16 +53,3 @@ one number changing over time.
    the failed wedge visibly overlapped the satellite it clipped, the same
    overlap the collision check had computed.
    [`a6c8bd1`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-chajie0824/commit/a6c8bd1)
-
-3. **Rejecting "fill the ring" once it made a round unwinnable.** Once the
-   check above was fixed, round 3 turned out to be impossible to clear at
-   all: filling an entire ring required near-perfectly even placement against
-   rotation speeds no reaction time could keep up with. Rather than accept a
-   smaller numeric tweak to the fill threshold, I rejected filling the whole
-   ring as the round-clear condition itself, on the grounds that a fair goal
-   has to be something a player can actually see and aim for, not an emergent
-   property of geometry. Each round now names a fixed, displayed target
-   (`Round 3 · 2/7`) sitting well under the ring's true capacity. I confirmed
-   it held up by playing several full attempts afterwards and reaching that
-   round's target consistently, instead of the previous single dead end.
-   [`f6b395d`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-chajie0824/commit/f6b395d)
