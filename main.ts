@@ -323,7 +323,7 @@ function draw(now: number) {
 
   const halfWidth = minSeparation / 2;
   for (const ringAngle of satellites) {
-    drawWedge(ringAngle, halfWidth, "rgba(47, 174, 130, 0.4)", null);
+    drawWedge(ringAngle, halfWidth, "rgba(47, 174, 130, 0.75)", null);
     drawSatelliteIcon(ringAngle, "#c3d2e6", "#2fae82");
   }
 
