@@ -2,11 +2,13 @@ import { collides, isRingFull, normalizeAngle, TAU } from "./orbit.ts";
 
 // Orbit: click or press space to launch a satellite onto the spinning ring.
 // Land it away from every satellite already there --- touch one and the round
-// ends. Fill the ring and the next round starts tighter and faster.
+// ends. Each round names a target count up front; reach it and the next round
+// starts tighter and faster.
 
 const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
 const ctx = canvas.getContext("2d")!;
 const scoreEl = document.querySelector<HTMLElement>("#score")!;
+const roundEl = document.querySelector<HTMLElement>("#round")!;
 
 const LAUNCH_ANGLE = Math.PI / 2; // bottom of the ring, screen space
 const START_MIN_SEPARATION = 0.85;
@@ -17,6 +19,14 @@ const ROTATION_SPEED_GROWTH = 1.15;
 const SHAKE_MS = 420;
 const FLASH_MS = 260;
 const WIN_ROUNDS = 5;
+// A round's target sits well under the ring's true packing capacity, so
+// reaching it never depends on placing satellites perfectly evenly.
+const ROUND_TARGET_RATIO = 0.65;
+
+function targetForRound(separation: number): number {
+  const capacity = Math.floor(TAU / separation);
+  return Math.max(3, Math.round(capacity * ROUND_TARGET_RATIO));
+}
 
 type Status = "playing" | "gameover" | "win";
 
@@ -44,6 +54,8 @@ let minSeparation = START_MIN_SEPARATION;
 let satellites: number[] = [];
 let score = 0;
 let round = 1;
+let placedThisRound = 0;
+let roundTarget = targetForRound(START_MIN_SEPARATION);
 let status: Status = "playing";
 let flashUntil = 0;
 let shakeUntil = 0;
@@ -79,6 +91,8 @@ function reset() {
   satellites = [];
   score = 0;
   round = 1;
+  placedThisRound = 0;
+  roundTarget = targetForRound(minSeparation);
   sparks = [];
   failedAngle = null;
   status = "playing";
@@ -106,8 +120,12 @@ function fire() {
 
   satellites.push(ringAngle);
   score++;
+  placedThisRound++;
 
-  if (isRingFull(satellites, minSeparation)) {
+  // The target is the round's real goal; isRingFull is only a backstop for
+  // the rare unlucky spacing that fills every gap before the target's hit,
+  // so a round never demands a placement with nowhere legal left to go.
+  if (placedThisRound >= roundTarget || isRingFull(satellites, minSeparation)) {
     if (round >= WIN_ROUNDS) {
       status = "win";
       const now = performance.now();
@@ -120,7 +138,9 @@ function fire() {
     }
     round++;
     satellites = [];
+    placedThisRound = 0;
     minSeparation = Math.max(MIN_SEPARATION_FLOOR, minSeparation * SEPARATION_DECAY);
+    roundTarget = targetForRound(minSeparation);
     rotationSpeed *= ROTATION_SPEED_GROWTH;
     flashUntil = performance.now() + FLASH_MS;
   }
@@ -287,6 +307,7 @@ function frame(now: number) {
   }
   draw(now);
   scoreEl.textContent = String(score);
+  roundEl.textContent = `Round ${round} · ${placedThisRound}/${roundTarget}`;
   requestAnimationFrame(frame);
 }
 
