@@ -236,8 +236,11 @@ function drawSatelliteIcon(
 
 // The planet is the 🌍 glyph itself --- a real illustration beats a hand-
 // rolled ocean/continent texture at this size. A soft glow sits behind it so
-// it doesn't look pasted onto plain black, and the mood tint (danger/win)
-// is a colour wash clipped to the glyph's own circle.
+// it doesn't look pasted onto plain black. Game-over/win are already read
+// from the shake, the sparks, the highlighted failed wedge and the launch
+// pad colour --- the planet itself doesn't need its own mood tint, and a
+// flat colour wash clipped to a circle never lined up with the glyph's own
+// (non-circular, shaded) artwork anyway.
 function drawEarth(planetRadius: number) {
   const glow = ctx.createRadialGradient(
     center.x,
@@ -260,16 +263,6 @@ function drawEarth(planetRadius: number) {
   ctx.textBaseline = "middle";
   ctx.fillText("🌍", center.x, center.y + planetRadius * 0.06);
   ctx.restore();
-
-  if (status !== "playing") {
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(center.x, center.y, planetRadius * 0.98, 0, TAU);
-    ctx.clip();
-    ctx.fillStyle = status === "gameover" ? "rgba(190, 50, 70, 0.4)" : "rgba(255, 205, 90, 0.34)";
-    ctx.fillRect(center.x - planetRadius, center.y - planetRadius, planetRadius * 2, planetRadius * 2);
-    ctx.restore();
-  }
 }
 
 function draw(now: number) {
