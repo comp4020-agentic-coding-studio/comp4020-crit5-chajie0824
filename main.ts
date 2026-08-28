@@ -16,8 +16,9 @@ const START_ROTATION_SPEED = 0.5; // rad/sec
 const ROTATION_SPEED_GROWTH = 1.15;
 const SHAKE_MS = 420;
 const FLASH_MS = 260;
+const WIN_ROUNDS = 5;
 
-type Status = "playing" | "gameover";
+type Status = "playing" | "gameover" | "win";
 
 interface Star {
   x: number;
@@ -42,6 +43,7 @@ let rotationSpeed = START_ROTATION_SPEED;
 let minSeparation = START_MIN_SEPARATION;
 let satellites: number[] = [];
 let score = 0;
+let round = 1;
 let status: Status = "playing";
 let flashUntil = 0;
 let shakeUntil = 0;
@@ -76,13 +78,14 @@ function reset() {
   minSeparation = START_MIN_SEPARATION;
   satellites = [];
   score = 0;
+  round = 1;
   sparks = [];
   failedAngle = null;
   status = "playing";
 }
 
 function fire() {
-  if (status === "gameover") {
+  if (status === "gameover" || status === "win") {
     reset();
     return;
   }
@@ -105,6 +108,17 @@ function fire() {
   score++;
 
   if (isRingFull(satellites.length, minSeparation)) {
+    if (round >= WIN_ROUNDS) {
+      status = "win";
+      const now = performance.now();
+      flashUntil = now + FLASH_MS;
+      sparks = Array.from({ length: 28 }, () => ({
+        angle: Math.random() * TAU,
+        life: 1,
+      }));
+      return;
+    }
+    round++;
     satellites = [];
     minSeparation = Math.max(MIN_SEPARATION_FLOOR, minSeparation * SEPARATION_DECAY);
     rotationSpeed *= ROTATION_SPEED_GROWTH;
@@ -186,7 +200,10 @@ function draw(now: number) {
     planetRadius,
   );
   planetGradient.addColorStop(0, "#9db9ff");
-  planetGradient.addColorStop(1, status === "gameover" ? "#5a2036" : "#274a7a");
+  planetGradient.addColorStop(
+    1,
+    status === "gameover" ? "#5a2036" : status === "win" ? "#8a6a1a" : "#274a7a",
+  );
   ctx.fillStyle = planetGradient;
   ctx.beginPath();
   ctx.arc(center.x, center.y, planetRadius, 0, TAU);
@@ -228,7 +245,7 @@ function draw(now: number) {
     const x = center.x + Math.cos(spark.angle) * dist;
     const y = center.y + Math.sin(spark.angle) * dist;
     ctx.globalAlpha = Math.max(0, spark.life);
-    ctx.fillStyle = "#ff7a5c";
+    ctx.fillStyle = status === "win" ? "#ffd678" : "#ff7a5c";
     ctx.beginPath();
     ctx.arc(x, y, 4, 0, TAU);
     ctx.fill();
@@ -247,9 +264,13 @@ function draw(now: number) {
   ctx.lineTo(padX, padY);
   ctx.stroke();
 
-  const pulse = status === "gameover" ? 0.5 : 0.65 + 0.35 * Math.sin(now / 260);
+  const pulse = status === "playing" ? 0.65 + 0.35 * Math.sin(now / 260) : 0.5;
   ctx.fillStyle =
-    status === "gameover" ? "rgba(255,255,255,0.25)" : `rgba(255, 214, 120, ${pulse})`;
+    status === "gameover"
+      ? "rgba(255,255,255,0.25)"
+      : status === "win"
+        ? "rgba(255, 214, 120, 0.9)"
+        : `rgba(255, 214, 120, ${pulse})`;
   ctx.beginPath();
   ctx.arc(outerX, outerY, 5, 0, TAU);
   ctx.fill();
