@@ -107,7 +107,7 @@ function fire() {
   satellites.push(ringAngle);
   score++;
 
-  if (isRingFull(satellites.length, minSeparation)) {
+  if (isRingFull(satellites, minSeparation)) {
     if (round >= WIN_ROUNDS) {
       status = "win";
       const now = performance.now();

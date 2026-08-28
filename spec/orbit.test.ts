@@ -4,8 +4,8 @@ import {
   angularDistance,
   collides,
   isRingFull,
+  largestGap,
   normalizeAngle,
-  ringCapacity,
 } from "../orbit.ts";
 
 // The one rule this week's spec asks for a focused test on: a newly-launched
@@ -70,16 +70,42 @@ describe("collides", () => {
   });
 });
 
-describe("ringCapacity / isRingFull", () => {
-  it("fits fewer satellites as the separation grows", () => {
-    expect(ringCapacity(Math.PI)).toBeLessThan(ringCapacity(0.3));
+describe("largestGap", () => {
+  it("is the whole ring when empty", () => {
+    expect(largestGap([])).toBeCloseTo(TAU);
   });
 
-  it("is not full below capacity", () => {
-    expect(isRingFull(2, 1)).toBe(false);
+  it("is the whole ring with just one satellite", () => {
+    expect(largestGap([0])).toBeCloseTo(TAU);
   });
 
-  it("is full once the count reaches capacity", () => {
-    expect(isRingFull(ringCapacity(1), 1)).toBe(true);
+  it("finds the largest of several gaps, wraparound included", () => {
+    // Gaps of 2, 2 and (TAU - 4) between 0, 2 and 4 --- the wraparound gap
+    // back to 0 is the biggest one.
+    expect(largestGap([0, 2, 4])).toBeCloseTo(TAU - 4);
+  });
+});
+
+describe("isRingFull", () => {
+  // Real play never spaces satellites evenly, so fullness has to come from
+  // the actual widest remaining gap, not a fixed count.
+
+  it("is false while a wide gap remains", () => {
+    expect(isRingFull([0], 1)).toBe(false);
+  });
+
+  it("is false when the largest gap exactly fits one more satellite", () => {
+    // Two satellites opposite each other split the ring into two gaps of
+    // exactly 2x minSeparation --- a satellite dropped in the middle of
+    // either sits exactly minSeparation from both, a legal tight fit.
+    expect(isRingFull([0, Math.PI], Math.PI / 2)).toBe(false);
+  });
+
+  it("is true once every remaining gap is too tight for another satellite", () => {
+    expect(isRingFull([0, 2, 4], 1.2)).toBe(true);
+  });
+
+  it("is false for the same layout with a more forgiving separation", () => {
+    expect(isRingFull([0, 2, 4], 1.0)).toBe(false);
   });
 });

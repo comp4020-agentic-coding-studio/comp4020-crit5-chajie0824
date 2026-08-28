@@ -27,10 +27,24 @@ export function collides(
   );
 }
 
-export function ringCapacity(minSeparation: number): number {
-  return Math.floor(TAU / minSeparation);
+// The widest gap between neighbouring satellites, wraparound included. TAU
+// (the whole ring) when there's nothing on it yet, or just one satellite.
+export function largestGap(existingAngles: number[]): number {
+  if (existingAngles.length === 0) return TAU;
+  const sorted = existingAngles.map(normalizeAngle).sort((a, b) => a - b);
+  let max = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const next = sorted[(i + 1) % sorted.length];
+    const gap = i === sorted.length - 1 ? TAU - sorted[i] + sorted[0] : next - sorted[i];
+    max = Math.max(max, gap);
+  }
+  return max;
 }
 
-export function isRingFull(existingCount: number, minSeparation: number): boolean {
-  return existingCount >= ringCapacity(minSeparation);
+// Full means no gap left is wide enough to fit another satellite anywhere
+// inside it --- not a fixed count, since real play never spaces satellites
+// evenly. A gap fits one more exactly when it's 2x minSeparation: split down
+// the middle, a new satellite sits exactly minSeparation from each neighbour.
+export function isRingFull(existingAngles: number[], minSeparation: number): boolean {
+  return largestGap(existingAngles) < minSeparation * 2;
 }
