@@ -48,33 +48,7 @@ let center = { x: 0, y: 0 };
 let ringRadius = 0;
 let stars: Star[] = [];
 
-// Cartesian offsets (fraction of planetRadius) rather than polar ones, and a
-// tilt that's independent of position --- ellipses whose long axis points
-// straight at the centre read as flower petals once there are more than two
-// of them, so the tilt deliberately doesn't track the placement angle.
-const CONTINENTS = [
-  // One big landmass cluster in one hemisphere (overlapping blobs of the
-  // same shade read as a single irregular continent, not separate petals).
-  { dx: 0.06, dy: -0.38, size: 0.3, tilt: 0.3, shade: 0 },
-  { dx: 0.34, dy: -0.18, size: 0.25, tilt: -0.2, shade: 0 },
-  { dx: 0.2, dy: 0.05, size: 0.21, tilt: 0.6, shade: 0 },
-  { dx: 0.3, dy: -0.3, size: 0.1, tilt: 0.1, shade: 1 },
-  // A smaller, separate landmass on the opposite side, leaving most of that
-  // hemisphere open ocean.
-  { dx: -0.52, dy: 0.16, size: 0.17, tilt: -0.4, shade: 0 },
-  { dx: -0.43, dy: 0.4, size: 0.13, tilt: 0.2, shade: 0 },
-  { dx: -0.02, dy: 0.5, size: 0.08, tilt: 0, shade: 1 },
-];
-const LAND_SHADES = ["rgba(68, 148, 94, 0.92)", "rgba(150, 138, 78, 0.85)"];
-const CLOUDS = [
-  { angle: 1.1, offset: 0.6, size: 0.5 },
-  { angle: 4.3, offset: 0.45, size: 0.38 },
-  { angle: 5.8, offset: 0.7, size: 0.3 },
-];
-const PLANET_ROTATION_SPEED = 0.12; // rad/sec, independent of the ring
-
 let rotationOffset = 0;
-let planetRotation = 0;
 let rotationSpeed = START_ROTATION_SPEED;
 let minSeparation = START_MIN_SEPARATION;
 let satellites: number[] = [];
@@ -260,74 +234,42 @@ function drawSatelliteIcon(
   ctx.restore();
 }
 
-// A textured little Earth: ocean base, a few procedural landmasses and
-// cloud wisps clipped to the disc, slowly spinning on its own axis
-// (independent of the ring) so it reads as a planet rather than a marble.
+// The planet is the 🌍 glyph itself --- a real illustration beats a hand-
+// rolled ocean/continent texture at this size. A soft glow sits behind it so
+// it doesn't look pasted onto plain black, and the mood tint (danger/win)
+// is a colour wash clipped to the glyph's own circle.
 function drawEarth(planetRadius: number) {
-  const oceanGradient = ctx.createRadialGradient(
-    center.x - planetRadius * 0.3,
-    center.y - planetRadius * 0.3,
-    planetRadius * 0.1,
+  const glow = ctx.createRadialGradient(
     center.x,
     center.y,
-    planetRadius,
+    0,
+    center.x,
+    center.y,
+    planetRadius * 1.15,
   );
-  oceanGradient.addColorStop(0, "#6fb8e8");
-  oceanGradient.addColorStop(1, "#1c4d8a");
-  ctx.fillStyle = oceanGradient;
+  glow.addColorStop(0, "rgba(120, 170, 255, 0.35)");
+  glow.addColorStop(1, "rgba(120, 170, 255, 0)");
+  ctx.fillStyle = glow;
   ctx.beginPath();
-  ctx.arc(center.x, center.y, planetRadius, 0, TAU);
+  ctx.arc(center.x, center.y, planetRadius * 1.15, 0, TAU);
   ctx.fill();
 
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(center.x, center.y, planetRadius, 0, TAU);
-  ctx.clip();
-
-  const cosR = Math.cos(planetRotation);
-  const sinR = Math.sin(planetRotation);
-  for (const land of CONTINENTS) {
-    const rx = land.dx * cosR - land.dy * sinR;
-    const ry = land.dx * sinR + land.dy * cosR;
-    const bx = center.x + rx * planetRadius;
-    const by = center.y + ry * planetRadius;
-    ctx.fillStyle = LAND_SHADES[land.shade];
-    ctx.beginPath();
-    ctx.ellipse(
-      bx,
-      by,
-      planetRadius * land.size,
-      planetRadius * land.size * 0.72,
-      land.tilt + planetRotation,
-      0,
-      TAU,
-    );
-    ctx.fill();
-  }
-
-  ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
-  for (const cloud of CLOUDS) {
-    const a = cloud.angle + planetRotation * 1.6;
-    const cx = center.x + Math.cos(a) * planetRadius * cloud.offset;
-    const cy = center.y + Math.sin(a) * planetRadius * cloud.offset;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, planetRadius * cloud.size, planetRadius * cloud.size * 0.45, a, 0, TAU);
-    ctx.fill();
-  }
-
-  if (status !== "playing") {
-    ctx.fillStyle =
-      status === "gameover" ? "rgba(190, 50, 70, 0.38)" : "rgba(255, 205, 90, 0.32)";
-    ctx.fillRect(center.x - planetRadius, center.y - planetRadius, planetRadius * 2, planetRadius * 2);
-  }
-
+  ctx.font = `${planetRadius * 2.05}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("🌍", center.x, center.y + planetRadius * 0.06);
   ctx.restore();
 
-  ctx.strokeStyle = "rgba(180, 220, 255, 0.4)";
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.arc(center.x, center.y, planetRadius, 0, TAU);
-  ctx.stroke();
+  if (status !== "playing") {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, planetRadius * 0.98, 0, TAU);
+    ctx.clip();
+    ctx.fillStyle = status === "gameover" ? "rgba(190, 50, 70, 0.4)" : "rgba(255, 205, 90, 0.34)";
+    ctx.fillRect(center.x - planetRadius, center.y - planetRadius, planetRadius * 2, planetRadius * 2);
+    ctx.restore();
+  }
 }
 
 function draw(now: number) {
@@ -370,7 +312,7 @@ function draw(now: number) {
   const planetRadius = ringRadius * 0.34;
   drawEarth(planetRadius);
 
-  ctx.strokeStyle = "rgba(140, 170, 255, 0.35)";
+  ctx.strokeStyle = "rgba(90, 110, 220, 0.65)";
   ctx.lineWidth = 2;
   ctx.setLineDash([6, 7]);
   ctx.beginPath();
@@ -453,7 +395,6 @@ function frame(now: number) {
   if (status === "playing") {
     rotationOffset = normalizeAngle(rotationOffset + rotationSpeed * dt);
   }
-  planetRotation = normalizeAngle(planetRotation + PLANET_ROTATION_SPEED * dt);
   draw(now);
   scoreEl.textContent = String(score);
   roundEl.textContent = `Round ${round} · ${placedThisRound}/${roundTarget}`;
