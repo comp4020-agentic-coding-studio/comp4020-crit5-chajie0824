@@ -51,7 +51,9 @@ describe("collides", () => {
 
   it("is false landing exactly at the separation threshold", () => {
     // Boundary is exclusive: exactly minSeparation apart is a legal fit.
-    expect(collides([1.0], 1.3, 0.3)).toBe(false);
+    // 0.25 and 1.25 are exact in binary floating point, so this isn't
+    // sensitive to the rounding a value like 0.3 would introduce.
+    expect(collides([1.0], 1.25, 0.25)).toBe(false);
   });
 
   it("is false landing just outside the separation threshold", () => {
