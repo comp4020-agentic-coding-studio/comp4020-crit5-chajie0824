@@ -1,70 +1,68 @@
 # Process overview
 
-<!-- TEMPLATE: this file is a shape to fill in, not a form. Replace everything
-     in it with your own overview, and delete this comment — `pnpm
-     check:evidence` will remind you if it's still here. -->
-
-A reading-guide to how the work came together --- a map to your process, not an
-essay about it. Markers read this file and follow its citations; they don't
-trawl the repo for evidence you didn't point at, so if a moment mattered, cite
-it.
-
-This file is the shape; the course site's
-[assessment page](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#what-you-submit)
-is the requirement, and its
-[word counts](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/topics/assessment/#word-counts)
-cover every deliverable.
+A reading-guide to how Orbit came together.
 
 ## What I built
 
-One paragraph: the thing, and the idea behind it.
+Orbit: a one-tap arcade game where you click, or press space, to launch a
+satellite onto a ring spinning around a planet. Land far enough from every
+satellite already on the ring — touch one and the round ends. Clear a round's
+target count without a collision and the ring resets tighter and spins faster
+for the next one; clear five rounds and you win outright. Everything you need
+is visible before you touch anything: the ring turning, a pulsing launch pad,
+and a translucent preview showing exactly where the next click will land. A
+loss and a win look and read as distinct events — a collision shakes the
+screen and leaves the two overlapping shots in red; a win floods the ring
+gold. The single number the game is built around is `minSeparation`, the
+angular gap a new satellite must keep from every other one — everything else
+(the ring narrowing, the rotation speeding up, a round's target count) is that
+one number changing over time.
 
 ## The moments that mattered
 
-Three or four for an assignment; fewer is fine for a weekly prototype. Keep the
-list short so each moment has room to do all four jobs:
+1. **The ring can look full and still refuse to call it full.** After a few
+   rounds of real play, a screenshot showed the ring visibly packed — every
+   satellite edge-to-edge with barely a gap anywhere — yet the next click was
+   still forced through, and the resulting collision looked exactly like an
+   ordinary loss. I sent that screenshot over and pushed back on the
+   assumption behind my own first framing of the problem: I'd asked for a win
+   condition to be designed, as if the game had none, but the more useful
+   question turned out to be why a ring that visibly looked full wasn't being
+   treated as full by whatever check already decided that. That reframing —
+   bug in an existing check, not a missing feature — pointed the fix at the
+   actual cause: the check compared the satellite count against an idealised,
+   evenly-spaced capacity, which real, unevenly-timed clicks never match. The
+   fix instead measures the true widest remaining gap on the ring, with unit
+   tests pinning its behaviour at the exact boundary a satellite can still
+   fit. I confirmed it by playing again with the same kind of uneven spacing
+   that broke it originally, and watched the ring flash and reset into the
+   next round without ever being forced into an unavoidable collision.
+   [`5669eef`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-chajie0824/commit/5669eef)
 
-1. **what happened** --- the problem, or the thing that went wrong
-2. **what you did instead of the obvious thing** --- the call you made, and why
-   it beat the obvious one
-3. **how you knew it was right** --- the check you ran, the viewport you looked
-   at, what you read before accepting the diff
-4. **the citation** --- a commit or commit range, a `CLAUDE.md` change, a check
-   that went from red to green, a prompt paired with the commit it produced
+2. **A loss with nothing visibly touching.** On an early playthrough, shots
+   were failing well before they looked close to another satellite — the
+   satellites on screen were small fixed dots, but the actual rule judged
+   distance across a much wider angular arc. I flagged it as the most serious
+   problem so far, since a loss that doesn't visibly match what happened
+   breaks the game's basic fairness. The fix that would have been fastest —
+   shrinking the collision rule to match the dots — would have quietly made
+   the one rule the game is tested on more forgiving than intended, so I
+   asked instead for the drawing to match the rule rather than the other way
+   round. Every satellite and the shot preview now render as a wedge exactly
+   `minSeparation` wide. I checked it by looking at a losing shot afterwards:
+   the failed wedge visibly overlapped the satellite it clipped, the same
+   overlap the collision check had computed.
+   [`a6c8bd1`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-chajie0824/commit/a6c8bd1)
 
-Jobs 2 and 3 are the ones the repo can't tell a reader on its own, so they're
-where the marks are. The strongest moments are the ones where a correction
-landed in the **harness** --- the standards and checks your work has to satisfy
---- rather than in a retry: a rule added to `CLAUDE.md`, a check wired up, an
-attempt thrown away. Retrying until it passes is the routine case, and changing
-what the work runs against is the skilled one.
-
-Cite each moment as a link whose text is the commit hash or range and whose
-target is this repo's commit or compare URL, so a reader clicks straight to the
-evidence:
-
-- one commit: [`a1b2c3d`](https://github.com/YOUR-ORG/YOUR-REPO/commit/a1b2c3d)
-- a range:
-  [`a1b2c3d...e4f5a6b`](https://github.com/YOUR-ORG/YOUR-REPO/compare/a1b2c3d...e4f5a6b)
-
-To pair a prompt with the commit it produced, quote the prompt (curated, not a
-full transcript) next to the citation:
-
-> the prompt, verbatim
-
-Screenshots are welcome where one carries the verification better than a
-sentence does. Commit the file to this repo and link it with a **relative**
-path, which is what makes it render on GitHub: `![alt text](docs/before.png)`.
-Images don't count towards the word count and don't replace the citation.
-
-## Before you ship
-
-`pnpm check:evidence` verifies your citations resolve to real commits, that a
-reflection entry the marker reads is in `reflections/`, and that your
-`CLAUDE.md` is there --- before a marker ever opens the file. It checks that
-your map is traceable, not that it is good: the marker judges whether your
-small, deliberately chosen set of moments shows real judgement and reflection. A
-green check is not a substitute for that curation.
-
-Images aren't checked: unlike a citation whose SHA doesn't resolve, a broken
-image is visible the moment this file is rendered on GitHub.
+3. **Rejecting "fill the ring" once it made a round unwinnable.** Once the
+   check above was fixed, round 3 turned out to be impossible to clear at
+   all: filling an entire ring required near-perfectly even placement against
+   rotation speeds no reaction time could keep up with. Rather than accept a
+   smaller numeric tweak to the fill threshold, I rejected filling the whole
+   ring as the round-clear condition itself, on the grounds that a fair goal
+   has to be something a player can actually see and aim for, not an emergent
+   property of geometry. Each round now names a fixed, displayed target
+   (`Round 3 · 2/7`) sitting well under the ring's true capacity. I confirmed
+   it held up by playing several full attempts afterwards and reaching that
+   round's target consistently, instead of the previous single dead end.
+   [`f6b395d`](https://github.com/comp4020-agentic-coding-studio/comp4020-crit5-chajie0824/commit/f6b395d)
